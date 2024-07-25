@@ -202,13 +202,13 @@ void loop() {
   uint8_t len = sizeof(buf);
 
   // Check for incoming NRF24 messages
-  //if (nrf24.available()) {
-  if (Serial.available() > 0) {
-    String command = Serial.readStringUntil('\n');
+  if (nrf24.available()) {
+  //if (Serial.available() > 0) {
+    //String command = Serial.readStringUntil('\n');
     
-    //if (nrf24.recv(buf, &len)) {
+    if (nrf24.recv(buf, &len)) {
       buf[len] = 0; // Null-terminate string
-      //String command = String((char*)buf);
+      String command = String((char*)buf);
       command.trim(); // Remove any leading/trailing whitespace
       Serial.print("Received command: ");
       Serial.println(command);
@@ -219,7 +219,7 @@ void loop() {
         Serial.println("Invalid command received, requesting resend");
         Serial.println("RESEND");
       }
-    //}
+    }
   }
 
   // Get new sensor events with the readings
@@ -307,7 +307,7 @@ void loop() {
   // Print log if logging is enabled
   if (log_enabled) {
     Serial.println(logMessage);
-    //sendStringOverNRF(logMessage);
+    sendStringOverNRF(logMessage);
   }
 
   delay(50); // Delay to simulate 50 ms loop time
