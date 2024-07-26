@@ -82,9 +82,8 @@ except Exception as e:
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_filename = f"log_{timestamp}.csv"
 
-# Open a file to log the data
-log_file = open(log_filename, 'w')
-log_file.write("Timestamp,Pitch,Roll,Elevator,Aileron_Left\n")
+# Create a buffer to store log data
+log_buffer = []
 
 # Create an event to signal threads to stop
 stop_event = threading.Event()
@@ -103,8 +102,7 @@ def read_from_serial():
             if line.startswith("INFO"):
                 print(f"\r{line}\nEnter command: ", end='')
             if line and line.count(',') == 4:  # Ensure the line has 5 columns
-                log_file.write(line + '\n')
-                log_file.flush()
+                log_buffer.append(line)
         except Exception as e:
             print(f"Error reading from serial: {e}")
 
@@ -117,6 +115,11 @@ def write_to_serial():
             if is_valid_command(command):
                 if command == "CLOSE":
                     stop_event.set()
+                    # Write buffer to file
+                    with open(log_filename, 'w') as log_file:
+                        log_file.write("Timestamp,Pitch,Roll,Elevator,Aileron_Left\n")
+                        for entry in log_buffer:
+                            log_file.write(entry + '\n')
                     break
                 elif command == "HELP":
                     print_help()
@@ -224,7 +227,7 @@ def print_help():
     - PID OFF: Disables PID control.
     - RESET SETPOINT: Resets the setpoints to the current mean values.
     - HELP: Shows this help message.
-    - CLOSE: Closes the Python application.
+    - CLOSE: Closes the Python application and saves the log data.
     """
     print(help_text)
 
@@ -294,6 +297,10 @@ finally:
     read_thread.join()
     write_thread.join()
     ser.close()
-    log_file.close()
+    # Write buffer to file on close
+    with open(log_filename, 'w') as log_file:
+        log_file.write("Timestamp,Pitch,Roll,Elevator,Aileron_Left\n")
+        for entry in log_buffer:
+            log_file.write(entry + '\n')
     print("Serial port and log file closed.")
 
