@@ -6,6 +6,12 @@ import os
 import readline
 import argparse
 from datetime import datetime
+from help_functions import generate_prefix, set_params, test_info2path
+
+serial_port = "COM10"       # Ludwig Windows Computer
+
+prefix = generate_prefix()
+
 
 # Define valid commands and auto-completion keywords
 COMMANDS = ["START LOG", "STOP LOG", "PID ON", "PID OFF", "RESET SETPOINT",
@@ -76,7 +82,7 @@ def map_percentage_to_servo_angle(percentage):
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Serial control system for aircraft model")
-parser.add_argument("--port", type=str, default="/dev/ttyACM0", help="Serial port (default: /dev/ttyACM0)")
+parser.add_argument("--port", type=str, default=serial_port, help="Serial port (default:" +  serial_port + ")")
 parser.add_argument("--baud-rate", type=int, default=57600, help="Baud rate (default: 57600)")
 args = parser.parse_args()
 
@@ -88,9 +94,17 @@ except Exception as e:
     parser.print_help()
     exit(1)
 
+prefix = generate_prefix()
+
 # Generate a timestamped filename
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_filename = f"log_{timestamp}.csv"
+log_filename = f"{prefix}_log_{timestamp}.csv"
+
+# Saving Parameters
+parameter_filename = f"{prefix}_parameters_{timestamp}.csv"
+set_params(parameter_filename)
+
+sub_folder_path, folder_path = test_info2path(log_filename, parameter_filename)
 
 # Create a buffer to store log data
 log_buffer = []
