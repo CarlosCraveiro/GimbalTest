@@ -311,7 +311,7 @@ void loop() {
   if (log_enabled) {
     Serial.println(logMessage);
     a_counter++;
-    if(a_counter = 20) {
+    if(a_counter = 5) {
       sendStringOverNRF(logMessage);
       a_counter = 0;
     }
@@ -428,10 +428,10 @@ void processSetSurfacesCommand(String angles) {
   float rudderAngle = angles.substring(secondCommaIndex + 1, thirdCommaIndex).toFloat();
   float elevatorAngle = angles.substring(thirdCommaIndex + 1).toFloat();
 
-  aileron_right.write(mapServoValue(rightAileronAngle));
-  aileron_left.write(mapServoValue(leftAileronAngle));
-  rudder.write(mapServoValue(rudderAngle));
-  elevator.write(mapServoValue(elevatorAngle));
+  aileron_right.write(mapServoValue(rightAileronAngle, AILERON_R_CENTER, AILERON_R_CENTER - 50));
+  aileron_left.write(mapServoValue(leftAileronAngle, AILERON_L_CENTER, AILERON_L_CENTER - 50));
+  rudder.write(mapServoValue(rudderAngle, RUDDER_CENTER, RUDDER_CENTER - 25));
+  elevator.write(mapServoValue(elevatorAngle, ELEVATOR_CENTER, ELEVATOR_CENTER - 70 ));
 
   // Update the last input angles for the servos
   lastAileronRightAngle = rightAileronAngle;
@@ -494,12 +494,12 @@ bool isValidCommand(String command) {
   return false;
 }
 
-float normalizeServoAngle(int angle) {
-  return (angle - SERVO_CENTER) / float(SERVO_CENTER);
+float normalizeServoAngle(int angle, int servoCenter) {
+  return (angle - servoCenter) / float(servoCenter);
 }
 
-int mapServoValue(float value) {
-  return SERVO_CENTER + value * SERVO_CENTER;
+int mapServoValue(float value, int servoCenter, int servoAmplitude) {
+  return servoCenter + value * servoAmplitude;
 }
 
 // Function to send a string via NRF24
