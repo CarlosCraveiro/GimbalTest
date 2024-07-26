@@ -7,6 +7,12 @@
 #include <TimeLib.h>
 #include <RH_NRF24.h>
 
+// A counter for decrease the frequency of the sending messages
+int a_counter = 0;
+
+int current_elevator = 0;
+int current_left_aileron = 0;
+
 // Create MPU and Magnetometer instances
 Adafruit_MPU6050 mpu;
 Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
@@ -137,10 +143,10 @@ PIDController yawPID(P_yaw, D_yaw, I_yaw, 30, -30);
 
 void setup() {
   // Attach servos to pins
-  elevator.attach(3);
+  elevator.attach(6);
   rudder.attach(5);
-  aileron_left.attach(6);
-  aileron_right.attach(4);
+  aileron_left.attach(4);
+  aileron_right.attach(3);
 
   // Set all servos to the central position
   elevator.write(ELEVATOR_CENTER);
@@ -294,20 +300,26 @@ void loop() {
     //Serial.println("SERVO COMMAND");
     //Serial.println(output_pitch);
     elevator.write(output_pitch);
+    current_elevator = output_pitch - ELEVATOR_CENTER;
     aileron_left.write(2*AILERON_L_CENTER - (output_roll+10));
+    current_left_aileron = AILERON_L_CENTER - (output_roll+10);
     aileron_right.write(2*AILERON_R_CENTER - output_roll); // Assuming opposite movement for balance
     //rudder.write(mapServoValue(output_yaw));
   }
 
   // Create log message with timestamp
-  String logMessage = String(now()) + "," + String(input_pitch) + "," + String(input_roll) + "," + String(input_yaw) + "," +
-                      String(lastElevatorAngle) + "," + String(lastRudderAngle) + "," +
-                      String(lastAileronLeftAngle) + "," + String(lastAileronRightAngle);
+  String logMessage = String(now()) + "," + String(input_pitch) + "," + String(-input_roll) + "," +
+                      String(current_elevator) + "," +
+                      String(current_left_aileron);
                      
   // Print log if logging is enabled
   if (log_enabled) {
     Serial.println(logMessage);
-    sendStringOverNRF(logMessage);
+    a_counter++;
+    if(a_counter = 10) {
+      sendStringOverNRF(logMessage);
+      a_counter = 0;
+    }
   }
 
   delay(50); // Delay to simulate 50 ms loop time

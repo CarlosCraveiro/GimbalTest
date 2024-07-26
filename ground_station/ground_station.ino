@@ -2,7 +2,7 @@
 #include <SPI.h>
 
 // NRF24 radio communication
-RH_NRF24 nrf24;
+RH_NRF24 nrf24(8,10);
 
 static bool new_line = false;
 String lastCommand = ""; // Variable to store the last command
