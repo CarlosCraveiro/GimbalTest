@@ -7,13 +7,15 @@ import argparse
 from datetime import datetime
 
 # Define valid commands and auto-completion keywords
-COMMANDS = ["START LOG", "STOP LOG", "SET_SURFACES", "TURN", "SET TO MAX", "SET TO MIN", "SET TO ZERO", "TEST SURFACES", "HELP", "CLOSE"]
+COMMANDS = ["START LOG", "STOP LOG", "PID ON", "PID OFF", "RESET SETPOINT",
+            "SET_SURFACES", "TURN", "SET TO MAX", "SET TO MIN", "SET TO ZERO",
+            "TEST SURFACES", "HELP", "CLOSE", "SET_PITCH_POSITION", "SET_PID_GAINS"]
 DIRECTIONS = ["LEFT", "RIGHT", "UP", "DOWN"]
 PERCENTAGES = [str(x) for x in range(101)]
 
 # Function to check if the command is valid
 def is_valid_command(command):
-    if command in ["CLOSE", "HELP"]:
+    if command in ["CLOSE", "HELP", "START LOG", "STOP LOG", "PID ON", "PID OFF", "RESET SETPOINT"]:
         return True
     if any(command.startswith(valid_command) for valid_command in COMMANDS):
         if command.startswith("SET_SURFACES"):
@@ -36,6 +38,23 @@ def is_valid_command(command):
                         return False
             except:
                 return False
+        elif command.startswith("SET_PITCH_POSITION"):
+            try:
+                parts = command.split(" ")
+                if len(parts) == 2:
+                    float(parts[1])  # Check if it can be converted to a float
+                    return True
+            except:
+                return False
+        elif command.startswith("SET_PID_GAINS"):
+            try:
+                parts = command.split(" ")[1].split(",")
+                if len(parts) == 9 and all(float(part) for part in parts):
+                    return True
+                else:
+                    return False
+            except:
+                return False
         elif command in ["SET TO MAX", "SET TO MIN", "SET TO ZERO", "TEST SURFACES"]:
             return True
         return True
@@ -48,7 +67,7 @@ def map_percentage_to_servo_angle(percentage):
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Serial control system for aircraft model")
 parser.add_argument("--port", type=str, default="/dev/ttyACM0", help="Serial port (default: /dev/ttyACM0)")
-parser.add_argument("--baud-rate", type=int, default=9600, help="Baud rate (default: 9600)")
+parser.add_argument("--baud-rate", type=int, default=57600, help="Baud rate (default: 57600)")
 args = parser.parse_args()
 
 # Open the serial port
@@ -65,7 +84,7 @@ log_filename = f"log_{timestamp}.csv"
 
 # Open a file to log the data
 log_file = open(log_filename, 'w')
-log_file.write("Timestamp,Pitch,Roll,Yaw,Aileron_Left,Aileron_Right,Elevator,Rudder\n")
+log_file.write("Timestamp,Pitch,Roll,Elevator,Aileron_Left\n")
 
 # Create an event to signal threads to stop
 stop_event = threading.Event()
@@ -83,7 +102,7 @@ def read_from_serial():
             line = ser.readline().decode('utf-8').strip()
             if line.startswith("INFO"):
                 print(f"\r{line}\nEnter command: ", end='')
-            if line and line.count(',') == 7:  # Ensure the line has 8 columns
+            if line and line.count(',') == 5:  # Ensure the line has 8 columns
                 log_file.write(line + '\n')
                 log_file.flush()
         except Exception as e:
@@ -155,6 +174,17 @@ def write_to_serial():
                     last_elevator = 1
                     command = f"SET_SURFACES {last_aileron_right},{last_aileron_left},{last_rudder},{last_elevator}"
                     send_command(command)
+                elif command.startswith("SET_PITCH_POSITION"):
+                    parts = command.split(" ")
+                    pitch_position = float(parts[1])
+                    command = f"SET_PITCH_POSITION {pitch_position}"
+                    send_command(command)
+                elif command.startswith("SET_PID_GAINS"):
+                    parts = command.split(" ")[1].split(",")
+                    if len(parts) == 9:
+                        pid_gains = ",".join(parts)
+                        command = f"SET_PID_GAINS {pid_gains}"
+                        send_command(command)
                 else:
                     send_command(command)
             else:
@@ -163,7 +193,7 @@ def write_to_serial():
             print(f"Error writing to serial: {e}")
 
 def send_command(command):
-    error_attempts = 0;
+    error_attempts = 0
     while error_attempts < 8:
         try:
             ser.write((command + '\n').encode('utf-8'))
@@ -175,7 +205,7 @@ def send_command(command):
         except Exception as e:
             print(f"Error sending command: {e}")
             time.sleep(1)  # Wait for a second before retrying
-            error_attempts = error_attempts + 1
+            error_attempts += 1
 
 def print_help():
     help_text = """
@@ -188,6 +218,11 @@ def print_help():
     - SET TO MIN: Sets all control surfaces to -1.
     - SET TO ZERO: Sets all control surfaces to 0.
     - TEST SURFACES: Flexes all control surfaces from -1 to 1.
+    - SET_PITCH_POSITION <position>: Sets the pitch position to the specified value.
+    - SET_PID_GAINS <P_pitch,I_pitch,D_pitch,P_roll,I_roll,D_roll,P_yaw,I_yaw,D_yaw>: Sets the PID gains for pitch, roll, and yaw.
+    - PID ON: Enables PID control.
+    - PID OFF: Disables PID control.
+    - RESET SETPOINT: Resets the setpoints to the current mean values.
     - HELP: Shows this help message.
     - CLOSE: Closes the Python application.
     """
