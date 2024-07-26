@@ -118,13 +118,7 @@ public:
             double delta_error = error - last_error; // Change in error
 
             // Compute control signal
-            control_signal = Kp * error + (Ki * T) * total_error + (Kd / T) * delta_error + offset;
-            //Serial.println("P error:");
-            //Serial.println(Kp * error);
-            //Serial.println("I error:");
-            //Serial.println((Ki * T) * total_error);
-            //Serial.println("D error:");
-            //Serial.println((Kd / T) * delta_error);
+            control_signal = Kp * error + (Kd * delta_error/delta_time) + Ki * (last_error + delta_error/2) * delta_time + offset;
             // Limit control signal
             if (control_signal >= max_control) control_signal = max_control;
             else if (control_signal <= min_control) control_signal = min_control;
@@ -201,6 +195,7 @@ void setup() {
 
   // Send ready message via NRF24
   Serial.println("INFO: ready to receive commands");
+  sendStringOverNRF("INFO: ARMED!");
 }
 
 void loop() {
@@ -316,7 +311,7 @@ void loop() {
   if (log_enabled) {
     Serial.println(logMessage);
     a_counter++;
-    if(a_counter = 10) {
+    if(a_counter = 20) {
       sendStringOverNRF(logMessage);
       a_counter = 0;
     }
@@ -329,23 +324,23 @@ void processCommand(String command) {
   if (command.equals("START LOG")) {
     log_enabled = true;
     Serial.println("Logging started");
-    Serial.println("INFO: Logging started");
+    sendStringOverNRF("INFO: Logging started");
   } else if (command.equals("STOP LOG")) {
     log_enabled = false;
     Serial.println("Logging stopped");
-    Serial.println("INFO: Logging stopped");
+    sendStringOverNRF("INFO: Logging stopped");
   } else if (command.equals("PID ON")) {
     pid_enabled = true;
     Serial.println("PID control enabled");
-    Serial.println("INFO: PID control enabled");
+    sendStringOverNRF("INFO: PID control enabled");
   } else if (command.equals("PID OFF")) {
     pid_enabled = false;
     Serial.println("PID control disabled");
-    Serial.println("INFO: PID control disabled");
+    sendStringOverNRF("INFO: PID control disabled");
   } else if (command.equals("RESET SETPOINT")) {
     resetSetpoints();
     Serial.println("Setpoints reset to current mean values");
-    Serial.println("INFO: Setpoints reset");
+    sendStringOverNRF("INFO: Setpoints reset");
   } else if (command.startsWith("SET_SURFACES ")) {
     processSetSurfacesCommand(command.substring(13));
   } else if (command.startsWith("SET_PITCH_POSITION ")) {
@@ -356,11 +351,10 @@ void processCommand(String command) {
     processSetPIDGainsCommand(command.substring(14));
   } else {
     Serial.println("Unknown command");
-    Serial.println("INFO: Unknown command");
+    sendStringOverNRF("INFO: Unknown command");
   }
 }
 
-/*FIX THIS LATER!!*/
 void resetSetpoints() {
   const int numReadings = 500;
   double avgPitch = 0, avgRoll = 0, avgYaw = 0;
@@ -425,7 +419,7 @@ void processSetSurfacesCommand(String angles) {
 
   if (firstCommaIndex == -1 || secondCommaIndex == -1 || thirdCommaIndex == -1) {
     Serial.println("Invalid SET_SURFACES command format");
-    Serial.println("INFO: Invalid SET_SURFACES command format");
+    sendStringOverNRF("INFO: Invalid SET_SURFACES command format");
     return;
   }
 
@@ -464,7 +458,7 @@ void processSetPIDGainsCommand(String gains) {
       fourthCommaIndex == -1 || fifthCommaIndex == -1 || sixthCommaIndex == -1 ||
       seventhCommaIndex == -1 || eighthCommaIndex == -1) {
     Serial.println("Invalid SET_PID_GAINS command format");
-    Serial.println("INFO: Invalid SET_PID_GAINS command format");
+    sendStringOverNRF("INFO: Invalid SET_PID_GAINS command format");
     return;
   }
 
