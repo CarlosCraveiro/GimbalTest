@@ -230,10 +230,6 @@ void loop() {
 
   double input_yaw = 0;
 
-  // Calculate pitch, roll, and yaw (in degrees)
-  //input_roll = (a.gyro.roll - offsetRoll) * -90 / scaleRoll;
-  //input_pitch = (a.gyro.pitch - offsetPitch) * 90 / scalePitch;
-
   /* KALMAN CODE */
    read_gyro_data();
   RateRoll = double(GyX-GyX_cal)/65.5;
@@ -349,6 +345,8 @@ void processCommand(String command) {
     Serial.println(pitchPID.getSetpoint());
   } else if (command.startsWith("SET_PID_GAINS ")) {
     processSetPIDGainsCommand(command.substring(14));
+  } else if (command.startsWith("TEST ")) {
+    processTestCommand(command.substring(5));
   } else {
     Serial.println("Unknown command");
     sendStringOverNRF("INFO: Unknown command");
@@ -410,6 +408,50 @@ void resetSetpoints() {
   pitchPID.setSetpoint(avgPitch);
   rollPID.setSetpoint(avgRoll);
   //yawPID.setSetpoint(setpoint_yaw);
+}
+
+void processTestCommand(String params) {
+  int firstSpace = params.indexOf(' ');
+  int secondSpace = params.indexOf(' ', firstSpace + 1);
+
+  if (firstSpace == -1 || secondSpace == -1) {
+    Serial.println("Invalid TEST command format");
+    sendStringOverNRF("INFO: Invalid TEST command format");
+    return;
+  }
+
+  String surface = params.substring(0, firstSpace);
+  float angle = params.substring(firstSpace + 1, secondSpace).toFloat();
+  int duration = params.substring(secondSpace + 1).toInt();
+
+  if (surface == "ELEVATOR") {
+    elevator.write(angle + ELEVATOR_CENTER);
+    Serial.println("Testing Elevator");
+  } else if (surface == "RUDDER") {
+    rudder.write(angle + RUDDER_CENTER);
+    Serial.println("Testing Rudder");
+  } else if (surface == "AILERON") {
+    aileron_left.write(AILERON_L_CENTER - angle);
+    Serial.println("Testing Aileron Left");
+  } else if (surface == "AILERON") {
+    aileron_right.write(AILERON_R_CENTER + angle);
+    Serial.println("Testing Aileron Right");
+  } else {
+    Serial.println("Invalid control surface");
+    sendStringOverNRF("INFO: Invalid control surface");
+    return;
+  }
+
+  // Start logging for the specified duration
+  log_enabled = true;
+  delay(duration);
+  log_enabled = false;
+
+  // Reset surfaces to default positions after test
+  //elevator.write(ELEVATOR_CENTER);
+  //rudder.write(RUDDER_CENTER);
+  //aileron_left.write(AILERON_L_CENTER);
+  //aileron_right.write(AILERON_R_CENTER);
 }
 
 void processSetSurfacesCommand(String angles) {

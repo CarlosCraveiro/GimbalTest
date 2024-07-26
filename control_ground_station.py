@@ -1,3 +1,4 @@
+
 import serial
 import time
 import threading
@@ -9,7 +10,7 @@ from datetime import datetime
 # Define valid commands and auto-completion keywords
 COMMANDS = ["START LOG", "STOP LOG", "PID ON", "PID OFF", "RESET SETPOINT",
             "SET_SURFACES", "TURN", "SET TO MAX", "SET TO MIN", "SET TO ZERO",
-            "TEST SURFACES", "HELP", "CLOSE", "SET_PITCH_POSITION", "SET_PID_GAINS"]
+            "TEST SURFACES", "HELP", "CLOSE", "SET_PITCH_POSITION", "SET_PID_GAINS", "TEST"]
 DIRECTIONS = ["LEFT", "RIGHT", "UP", "DOWN"]
 PERCENTAGES = [str(x) for x in range(101)]
 
@@ -53,6 +54,15 @@ def is_valid_command(command):
                     return True
                 else:
                     return False
+            except:
+                return False
+        elif command.startswith("TEST"):
+            try:
+                parts = command.split(" ")
+                if len(parts) == 4 and parts[1] in ["ELEVATOR", "RUDDER", "AILERON"]:
+                    angle = float(parts[2])
+                    duration = int(parts[3])
+                    return True
             except:
                 return False
         elif command in ["SET TO MAX", "SET TO MIN", "SET TO ZERO", "TEST SURFACES"]:
@@ -177,6 +187,17 @@ def write_to_serial():
                     last_elevator = 1
                     command = f"SET_SURFACES {last_aileron_right},{last_aileron_left},{last_rudder},{last_elevator}"
                     send_command(command)
+                elif command.startswith("TEST"):
+                    parts = command.split(" ")
+                    surface = parts[1].upper()
+                    angle = float(parts[2])
+                    duration = int(parts[3])
+
+                    if surface in ["ELEVATOR", "RUDDER", "AILERON_LEFT", "AILERON_RIGHT"]:
+                        send_command(f"TEST {surface} {angle} {duration}")
+                        log_data_for_duration(duration)
+                    else:
+                        print(f"Invalid control surface: {surface}")
                 elif command.startswith("SET_PITCH_POSITION"):
                     parts = command.split(" ")
                     pitch_position = float(parts[1])
@@ -210,6 +231,18 @@ def send_command(command):
             time.sleep(1)  # Wait for a second before retrying
             error_attempts += 1
 
+def log_data_for_duration(duration_ms):
+    start_time = time.time()
+    while (time.time() - start_time) * 1000 < duration_ms:
+        if stop_event.is_set():
+            break
+        try:
+            line = ser.readline().decode('utf-8').strip()
+            if line:
+                log_buffer.append(line)
+        except Exception as e:
+            print(f"Error reading from serial during logging: {e}")
+
 def print_help():
     help_text = """
     Valid commands:
@@ -221,6 +254,7 @@ def print_help():
     - SET TO MIN: Sets all control surfaces to -1.
     - SET TO ZERO: Sets all control surfaces to 0.
     - TEST SURFACES: Flexes all control surfaces from -1 to 1.
+    - TEST <surface> <angle> <duration>: Tests the specified control surface at a given angle for a specified duration (ms).
     - SET_PITCH_POSITION <position>: Sets the pitch position to the specified value.
     - SET_PID_GAINS <P_pitch,I_pitch,D_pitch,P_roll,I_roll,D_roll,P_yaw,I_yaw,D_yaw>: Sets the PID gains for pitch, roll, and yaw.
     - PID ON: Enables PID control.
