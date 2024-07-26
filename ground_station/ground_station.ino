@@ -25,6 +25,7 @@ void setup() {
   }
 
   Serial.println("NRF24 initialized and ready");
+  Serial.println("INFO: Ground Station initialized and ready!");
 }
 
 void loop() {

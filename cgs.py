@@ -102,7 +102,7 @@ def read_from_serial():
             line = ser.readline().decode('utf-8').strip()
             if line.startswith("INFO"):
                 print(f"\r{line}\nEnter command: ", end='')
-            if line and line.count(',') == 5:  # Ensure the line has 8 columns
+            if line and line.count(',') == 4:  # Ensure the line has 5 columns
                 log_file.write(line + '\n')
                 log_file.flush()
         except Exception as e:
