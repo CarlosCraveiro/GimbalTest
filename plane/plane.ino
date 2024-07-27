@@ -9,6 +9,7 @@
 
 // A counter for decrease the frequency of the sending messages
 int a_counter = 0;
+int test_counter = 0;
 
 int current_elevator = 0;
 int current_left_aileron = 0;
@@ -29,9 +30,12 @@ bool log_enabled = false;
 // PID control flag
 bool pid_enabled = false;
 
+// test flag
+bool testing_enabled = false;
+
 // Angle limits for control surfaces around a central position of 90 degrees
-const int AILERON_L_CENTER = 95;
-const int AILERON_R_CENTER = 85;
+const int AILERON_L_CENTER = 80;
+const int AILERON_R_CENTER = 100;
 const int ELEVATOR_CENTER = 90;
 const int RUDDER_CENTER = 95;
 const int SERVO_CENTER = 90;
@@ -53,7 +57,7 @@ float scalePitch, scaleYaw, scaleRoll;
 
 // PID coefficients
 double P_pitch = 20, I_pitch = 0.0, D_pitch = 2.0;
-double P_roll = 25, I_roll = 0.0, D_roll = 2.0;
+double P_roll = 10 , I_roll = 0.0, D_roll = 2.0;
 double P_yaw = 0.0, I_yaw = 0.0, D_yaw = 0.0;
 
 /* Code for MPU Gyro and Kalman*/
@@ -108,6 +112,7 @@ public:
 
         //if (delta_time >= T) {
             double error = setpoint - sensed_output;
+            Serial.println(error);
             total_error = error; // Accumulate error
             //total_error += error; // Accumulate error
 
@@ -220,6 +225,14 @@ void loop() {
         Serial.println("Invalid command received, requesting resend");
         Serial.println("RESEND");
       }
+    }
+  }
+
+  if(testing_enabled) {
+    if(--test_counter == 0) {
+      testing_enabled = false;
+      log_enabled = false;
+       sendStringOverNRF("INFO: Test END");
     }
   }
 
@@ -406,7 +419,8 @@ void resetSetpoints() {
   }
 
   pitchPID.setSetpoint(avgPitch);
-  rollPID.setSetpoint(avgRoll);
+  rollPID.setSetpoint(-0.89);
+  Serial.println(avgRoll);
   //yawPID.setSetpoint(setpoint_yaw);
 }
 
@@ -431,27 +445,20 @@ void processTestCommand(String params) {
     rudder.write(angle + RUDDER_CENTER);
     Serial.println("Testing Rudder");
   } else if (surface == "AILERON") {
-    aileron_left.write(AILERON_L_CENTER - angle);
-    Serial.println("Testing Aileron Left");
-  } else if (surface == "AILERON") {
+    aileron_left.write(AILERON_L_CENTER + angle);
     aileron_right.write(AILERON_R_CENTER + angle);
-    Serial.println("Testing Aileron Right");
+    Serial.println("Testing Ailerons");
   } else {
     Serial.println("Invalid control surface");
     sendStringOverNRF("INFO: Invalid control surface");
     return;
   }
 
-  // Start logging for the specified duration
-  log_enabled = true;
-  delay(duration);
-  log_enabled = false;
 
-  // Reset surfaces to default positions after test
-  //elevator.write(ELEVATOR_CENTER);
-  //rudder.write(RUDDER_CENTER);
-  //aileron_left.write(AILERON_L_CENTER);
-  //aileron_right.write(AILERON_R_CENTER);
+  // Start logging for the specified duration
+  testing_enabled = true;
+  log_enabled = true;
+  test_counter = duration;
 }
 
 void processSetSurfacesCommand(String angles) {
@@ -470,10 +477,10 @@ void processSetSurfacesCommand(String angles) {
   float rudderAngle = angles.substring(secondCommaIndex + 1, thirdCommaIndex).toFloat();
   float elevatorAngle = angles.substring(thirdCommaIndex + 1).toFloat();
 
-  aileron_right.write(mapServoValue(rightAileronAngle, AILERON_R_CENTER, AILERON_R_CENTER - 50));
-  aileron_left.write(mapServoValue(leftAileronAngle, AILERON_L_CENTER, AILERON_L_CENTER - 50));
-  rudder.write(mapServoValue(rudderAngle, RUDDER_CENTER, RUDDER_CENTER - 25));
-  elevator.write(mapServoValue(elevatorAngle, ELEVATOR_CENTER, ELEVATOR_CENTER - 70 ));
+  aileron_right.write(mapServoValue(rightAileronAngle, AILERON_R_CENTER, 50));
+  aileron_left.write(mapServoValue(leftAileronAngle, AILERON_L_CENTER, 50));
+  rudder.write(mapServoValue(rudderAngle, RUDDER_CENTER, 25));
+  elevator.write(mapServoValue(elevatorAngle, ELEVATOR_CENTER, 70 ));
 
   // Update the last input angles for the servos
   lastAileronRightAngle = rightAileronAngle;
@@ -523,7 +530,7 @@ void processSetPIDGainsCommand(String gains) {
                     "P_roll: " + String(P_roll) + ", I_roll: " + String(I_roll) + ", D_roll: " + String(D_roll) + ", " +
                     "P_yaw: " + String(P_yaw) + ", I_yaw: " + String(I_yaw) + ", D_yaw: " + String(D_yaw);
   Serial.println(response);
-  Serial.println(response);
+  sendStringOverNRF(response);
 }
 
 bool isValidCommand(String command) {
@@ -531,6 +538,9 @@ bool isValidCommand(String command) {
     return true;
   }
   if (command.startsWith("SET_SURFACES ") || command.startsWith("SET_PITCH_POSITION ") || command.startsWith("SET_PID_GAINS ")) {
+    return true;
+  }
+  if (command.startsWith("TEST ")) {
     return true;
   }
   return false;
