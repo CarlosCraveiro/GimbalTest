@@ -12,7 +12,7 @@
       pkgs = import nixpkgs {
         inherit system;
       };
-      pythonEnv = pkgs.python310.withPackages (ps: [
+      pythonEnv = pkgs.python312.withPackages (ps: [
         ps.pyserial
         ps.matplotlib
         # Add other Python packages here as needed
@@ -20,13 +20,11 @@
     in
     {
       devShells.default = pkgs.mkShell {
-        buildInputs = [ pythonEnv ];
-      };
-
-      apps.default = flake-utils.lib.mkApp {
-        drv = pkgs.writeShellScriptBin "control-groundstation" ''
-          exec ${pythonEnv.interpreter} ${./control_groundstation.py} --port /dev/ttyACM0 --baud 57600
-        '';
-      };
+        buildInputs = [
+            pythonEnv
+            pkgs.gnumake
+            pkgs.screen
+        ];
+      }; 
     });
 }
