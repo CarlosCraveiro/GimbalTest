@@ -3,6 +3,7 @@ run:
 
 clean:
 	rm -f *.csv GimbalTest.zip
+	rm -rf __pycache__/
 
 zip:
 	zip GimbalTest.zip cgs.py ground_station/ground_station.ino Makefile plane/plane.ino

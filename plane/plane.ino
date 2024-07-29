@@ -44,6 +44,9 @@ const int MAX_ANGLE = 180;
 // NRF24 radio communication
 RH_NRF24 nrf24(7,8);
 
+int max_aileron = 20;
+int max_elevator = 20;
+
 // Variables to store the last input angles for the servos
 float lastElevatorAngle = 0.0;
 float lastRudderAngle = 0.0;
@@ -106,13 +109,24 @@ public:
         return control_signal;
     }
 
+    void setMax(double max) {
+      max_control = max;
+    }
+
+    void setMin(double min) {
+      min_control = min;
+    }
+
+    void setGains(double p, double i, double d) {
+      Kp = p; Ki = i; Kd = d;
+    }
+
     void compute(double sensed_output, double offset, int T) {
         unsigned long current_time = millis(); // Get current time
         int delta_time = current_time - last_time; // Time difference
 
         //if (delta_time >= T) {
             double error = setpoint - sensed_output;
-            Serial.println(error);
             total_error = error; // Accumulate error
             //total_error += error; // Accumulate error
 
@@ -136,8 +150,8 @@ public:
 
 
 // PID controllers
-PIDController pitchPID(P_pitch, D_pitch, I_pitch, 70 + ELEVATOR_CENTER, ELEVATOR_CENTER - 70);
-PIDController rollPID(P_roll, D_roll, I_roll, AILERON_R_CENTER + 50, AILERON_R_CENTER - 50);
+PIDController pitchPID(P_pitch, D_pitch, I_pitch, 30 + ELEVATOR_CENTER, ELEVATOR_CENTER - 30);
+PIDController rollPID(P_roll, D_roll, I_roll, AILERON_R_CENTER + 25, AILERON_R_CENTER - 25);
 PIDController yawPID(P_yaw, D_yaw, I_yaw, 30, -30);
 
 void setup() {
@@ -303,11 +317,10 @@ void loop() {
     // Set control surfaces based on PID outputs
     //Serial.println("SERVO COMMAND");
     //Serial.println(output_pitch);
-    elevator.write(output_pitch);
-    current_elevator = output_pitch - ELEVATOR_CENTER;
-    aileron_left.write(2*AILERON_L_CENTER - (output_roll+10));
-    current_left_aileron = AILERON_L_CENTER - (output_roll+10);
-    aileron_right.write(2*AILERON_R_CENTER - output_roll); // Assuming opposite movement for balance
+      elevator.write(output_pitch);
+      aileron_left.write(2*AILERON_L_CENTER - (output_roll-20));
+      current_left_aileron = AILERON_L_CENTER - (output_roll-20);
+      aileron_right.write(2*AILERON_R_CENTER - output_roll); // Assuming opposite movement for balance
     //rudder.write(mapServoValue(output_yaw));
   }
 
@@ -360,6 +373,8 @@ void processCommand(String command) {
     processSetPIDGainsCommand(command.substring(14));
   } else if (command.startsWith("TEST ")) {
     processTestCommand(command.substring(5));
+  } else if (command.startsWith("CHANGE ")) {
+    processChangeCommand(command.substring(7));
   } else {
     Serial.println("Unknown command");
     sendStringOverNRF("INFO: Unknown command");
@@ -419,9 +434,33 @@ void resetSetpoints() {
   }
 
   pitchPID.setSetpoint(avgPitch);
-  rollPID.setSetpoint(-0.89);
+  rollPID.setSetpoint(avgRoll);
   Serial.println(avgRoll);
   //yawPID.setSetpoint(setpoint_yaw);
+}
+
+void processChangeCommand(String params) {
+  int firstCommaIndex = params.indexOf(',');
+
+  if (firstCommaIndex == -1) {
+    Serial.println("Invalid CHANGE command format");
+    sendStringOverNRF("INFO: Invalid CHANGE command format");
+    return;
+  }
+
+  max_elevator = params.substring(0, firstCommaIndex).toFloat();
+  max_aileron = params.substring(firstCommaIndex + 1).toFloat();
+/*// PID controllers
+PIDController pitchPID(P_pitch, D_pitch, I_pitch, 30 + ELEVATOR_CENTER, ELEVATOR_CENTER - 30);
+PIDController rollPID(P_roll, D_roll, I_roll, AILERON_R_CENTER + 25, AILERON_R_CENTER - 25);
+*/
+  pitchPID.setMax(max_elevator + ELEVATOR_CENTER);
+  pitchPID.setMin(-max_elevator + ELEVATOR_CENTER);
+
+  rollPID.setMax(max_aileron + AILERON_R_CENTER);
+  rollPID.setMin(-max_elevator + AILERON_R_CENTER);
+
+  sendStringOverNRF("Changes were made");
 }
 
 void processTestCommand(String params) {
@@ -499,13 +538,12 @@ void processSetPIDGainsCommand(String gains) {
   int thirdCommaIndex = gains.indexOf(',', secondCommaIndex + 1);
   int fourthCommaIndex = gains.indexOf(',', thirdCommaIndex + 1);
   int fifthCommaIndex = gains.indexOf(',', fourthCommaIndex + 1);
-  int sixthCommaIndex = gains.indexOf(',', fifthCommaIndex + 1);
-  int seventhCommaIndex = gains.indexOf(',', sixthCommaIndex + 1);
-  int eighthCommaIndex = gains.indexOf(',', seventhCommaIndex + 1);
+  //int sixthCommaIndex = gains.indexOf(',', fifthCommaIndex + 1);
+  //int seventhCommaIndex = gains.indexOf(',', sixthCommaIndex + 1);
+  //int eighthCommaIndex = gains.indexOf(',', seventhCommaIndex + 1);
 
   if (firstCommaIndex == -1 || secondCommaIndex == -1 || thirdCommaIndex == -1 ||
-      fourthCommaIndex == -1 || fifthCommaIndex == -1 || sixthCommaIndex == -1 ||
-      seventhCommaIndex == -1 || eighthCommaIndex == -1) {
+      fourthCommaIndex == -1 || fifthCommaIndex == -1) {
     Serial.println("Invalid SET_PID_GAINS command format");
     sendStringOverNRF("INFO: Invalid SET_PID_GAINS command format");
     return;
@@ -516,19 +554,18 @@ void processSetPIDGainsCommand(String gains) {
   D_pitch = gains.substring(secondCommaIndex + 1, thirdCommaIndex).toFloat();
   P_roll = gains.substring(thirdCommaIndex + 1, fourthCommaIndex).toFloat();
   I_roll = gains.substring(fourthCommaIndex + 1, fifthCommaIndex).toFloat();
-  D_roll = gains.substring(fifthCommaIndex + 1, sixthCommaIndex).toFloat();
-  P_yaw = gains.substring(sixthCommaIndex + 1, seventhCommaIndex).toFloat();
-  I_yaw = gains.substring(seventhCommaIndex + 1, eighthCommaIndex).toFloat();
-  D_yaw = gains.substring(eighthCommaIndex + 1).toFloat();
+  D_roll = gains.substring(fifthCommaIndex + 1).toFloat();
+  //P_yaw = gains.substring(sixthCommaIndex + 1, seventhCommaIndex).toFloat();
+  //I_yaw = gains.substring(seventhCommaIndex + 1, eighthCommaIndex).toFloat();
+  //D_yaw = gains.substring(eighthCommaIndex + 1).toFloat();
 
   // Update PID controllers with new gains
-  pitchPID = PIDController(P_pitch, D_pitch, I_pitch, 180, -180);
-  rollPID = PIDController(P_roll, D_roll, I_roll, 180, -180);
-  yawPID = PIDController(P_yaw, D_yaw, I_yaw, 180, -180);
+  pitchPID.setGains(P_pitch, I_pitch, D_pitch);
+  rollPID.setGains(P_roll, I_roll, D_roll);
+  //yawPID.setGains(P_yaw, I_yaw, D_yaw);
 
-  String response = "PID gains set to P_pitch: " + String(P_pitch) + ", I_pitch: " + String(I_pitch) + ", D_pitch: " + String(D_pitch) + ", " +
-                    "P_roll: " + String(P_roll) + ", I_roll: " + String(I_roll) + ", D_roll: " + String(D_roll) + ", " +
-                    "P_yaw: " + String(P_yaw) + ", I_yaw: " + String(I_yaw) + ", D_yaw: " + String(D_yaw);
+  String response = "PID: " + String(int(P_pitch)) + "," + String(int(I_pitch)) + "," + String(int(D_pitch)) + "," +
+                   String(int(P_roll)) + "," + String(int(I_roll)) + "," + String(int(D_roll));
   Serial.println(response);
   sendStringOverNRF(response);
 }
@@ -540,7 +577,7 @@ bool isValidCommand(String command) {
   if (command.startsWith("SET_SURFACES ") || command.startsWith("SET_PITCH_POSITION ") || command.startsWith("SET_PID_GAINS ")) {
     return true;
   }
-  if (command.startsWith("TEST ")) {
+  if (command.startsWith("TEST ") || command.startsWith("CHANGE ")) {
     return true;
   }
   return false;
