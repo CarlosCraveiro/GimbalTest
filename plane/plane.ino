@@ -318,6 +318,7 @@ void loop() {
     //Serial.println("SERVO COMMAND");
     //Serial.println(output_pitch);
       elevator.write(output_pitch);
+      current_elevator = output_pitch - ELEVATOR_CENTER;
       aileron_left.write(2*AILERON_L_CENTER - (output_roll-20));
       current_left_aileron = AILERON_L_CENTER - (output_roll-20);
       aileron_right.write(2*AILERON_R_CENTER - output_roll); // Assuming opposite movement for balance
@@ -479,12 +480,14 @@ void processTestCommand(String params) {
 
   if (surface == "ELEVATOR") {
     elevator.write(angle + ELEVATOR_CENTER);
+    current_elevator = angle;
     Serial.println("Testing Elevator");
   } else if (surface == "RUDDER") {
     rudder.write(angle + RUDDER_CENTER);
     Serial.println("Testing Rudder");
   } else if (surface == "AILERON") {
     aileron_left.write(AILERON_L_CENTER + angle);
+    current_left_aileron = angle;
     aileron_right.write(AILERON_R_CENTER + angle);
     Serial.println("Testing Ailerons");
   } else {
@@ -524,8 +527,10 @@ void processSetSurfacesCommand(String angles) {
   // Update the last input angles for the servos
   lastAileronRightAngle = rightAileronAngle;
   lastAileronLeftAngle = leftAileronAngle;
+  current_left_aileron = mapServoValue(leftAileronAngle, AILERON_L_CENTER, 50) - AILERON_L_CENTER;
   lastRudderAngle = rudderAngle;
   lastElevatorAngle = elevatorAngle;
+  current_elevator = mapServoValue(elevatorAngle, ELEVATOR_CENTER, 70 ) - ELEVATOR_CENTER;
 
   String response = "Surfaces set to " + String(rightAileronAngle) + "," + String(leftAileronAngle) + "," + String(rudderAngle) + "," + String(elevatorAngle);
   Serial.println(response);

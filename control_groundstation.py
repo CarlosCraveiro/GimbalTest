@@ -1,4 +1,3 @@
-
 import serial
 import time
 import threading
@@ -12,11 +11,11 @@ serial_port = "COM10"       # Ludwig Windows Computer
 
 prefix = generate_prefix()
 
-
 # Define valid commands and auto-completion keywords
 COMMANDS = ["START LOG", "STOP LOG", "PID ON", "PID OFF", "RESET SETPOINT",
             "SET_SURFACES", "TURN", "SET TO MAX", "SET TO MIN", "SET TO ZERO",
-            "TEST SURFACES", "HELP", "CLOSE", "SET_PITCH_POSITION", "SET_PID_GAINS", "TEST"]
+            "TEST SURFACES", "HELP", "CLOSE", "SET_PITCH_POSITION", "SET_PID_GAINS", "TEST",
+            "LOG FOR", "SET MAX DEFLECTION"]
 DIRECTIONS = ["LEFT", "RIGHT", "UP", "DOWN"]
 PERCENTAGES = [str(x) for x in range(101)]
 
@@ -71,6 +70,23 @@ def is_valid_command(command):
                     return True
             except:
                 return False
+        elif command.startswith("LOG FOR"):
+            try:
+                parts = command.split(" ")
+                if len(parts) == 3:
+                    log_duration = int(parts[2])
+                    return True
+            except:
+                return False
+        elif command.startswith("SET MAX DEFLECTION"):
+            try:
+                parts = command.split(" ")
+                if len(parts) == 4:
+                    aileron_max = float(parts[2])
+                    elevator_max = float(parts[3])
+                    return True
+            except:
+                return False
         elif command in ["SET TO MAX", "SET TO MIN", "SET TO ZERO", "TEST SURFACES"]:
             return True
         return True
@@ -105,7 +121,6 @@ parameter_filename = f"{prefix}_parameters_{timestamp}.csv"
 folder_path = test_info2path(log_filename)
 
 set_params(folder_path + '/' + parameter_filename)
-
 
 # Create a buffer to store log data
 log_buffer = []
@@ -224,6 +239,21 @@ def write_to_serial():
                         pid_gains = ",".join(parts)
                         command = f"SET_PID_GAINS {pid_gains}"
                         send_command(command)
+                elif command.startswith("LOG FOR"):
+                    # Parse the duration in milliseconds
+                    parts = command.split(" ")
+                    log_duration_ms = int(parts[2])
+                    command = f'TEST ELEVATOR 0 {log_duration_ms}'
+                    send_command(command)
+                    print(f"Logging data for {log_duration_ms} milliseconds")
+                elif command.startswith("SET MAX DEFLECTION"):
+                    parts = command.split(" ")
+                    aileron_max = float(parts[2])
+                    elevator_max = float(parts[3])
+                    # Set the max deflection values for the aileron and elevator
+                    print(f"Setting max deflection to Aileron: {aileron_max}, Elevator: {elevator_max}")
+                    command = f'CHANGE {aileron_max} {elevator_max}'
+                    send_command(command)
                 else:
                     send_command(command)
             else:
@@ -272,6 +302,8 @@ def print_help():
     - TEST <surface> <angle> <duration>: Tests the specified control surface at a given angle for a specified duration (ms).
     - SET_PITCH_POSITION <position>: Sets the pitch position to the specified value.
     - SET_PID_GAINS <P_pitch,I_pitch,D_pitch,P_roll,I_roll,D_roll,P_yaw,I_yaw,D_yaw>: Sets the PID gains for pitch, roll, and yaw.
+    - LOG FOR <time in milliseconds>: Logs data for the specified duration in milliseconds.
+    - SET MAX DEFLECTION <Aileron Max deflection> <Elevator Max deflection>: Sets the maximum deflection values for the aileron and elevator.
     - PID ON: Enables PID control.
     - PID OFF: Disables PID control.
     - RESET SETPOINT: Resets the setpoints to the current mean values.

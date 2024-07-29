@@ -1,5 +1,5 @@
 run:
-	python control_groundstation.py --port /dev/ACM0 --baud 57600
+	python control_groundstation.py --port /dev/ttyACM0 --baud 57600
 
 clean:
 	rm -f *.csv GimbalTest.zip
