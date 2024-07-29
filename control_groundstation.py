@@ -56,7 +56,7 @@ def is_valid_command(command):
         elif command.startswith("SET_PID_GAINS"):
             try:
                 parts = command.split(" ")[1].split(",")
-                if len(parts) == 9 and all(float(part) for part in parts):
+                if len(parts) == 6 and all(float(part) for part in parts):
                     return True
                 else:
                     return False
@@ -94,17 +94,18 @@ except Exception as e:
     parser.print_help()
     exit(1)
 
-prefix = generate_prefix()
-
 # Generate a timestamped filename
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
 log_filename = f"{prefix}_log_{timestamp}.csv"
 
 # Saving Parameters
 parameter_filename = f"{prefix}_parameters_{timestamp}.csv"
-set_params(parameter_filename)
 
-sub_folder_path, folder_path = test_info2path(log_filename, parameter_filename)
+folder_path = test_info2path(log_filename)
+
+set_params(folder_path + '/' + parameter_filename)
+
 
 # Create a buffer to store log data
 log_buffer = []
@@ -140,7 +141,7 @@ def write_to_serial():
                 if command == "CLOSE":
                     stop_event.set()
                     # Write buffer to file
-                    with open(log_filename, 'w') as log_file:
+                    with open(folder_path + '/' + log_filename, 'w') as log_file:
                         log_file.write("Timestamp,Pitch,Roll,Elevator,Aileron_Left\n")
                         for entry in log_buffer:
                             log_file.write(entry + '\n')
@@ -346,7 +347,7 @@ finally:
     write_thread.join()
     ser.close()
     # Write buffer to file on close
-    with open(log_filename, 'w') as log_file:
+    with open(folder_path + '/' + log_filename, 'w') as log_file:
         log_file.write("Timestamp,Pitch,Roll,Elevator,Aileron_Left\n")
         for entry in log_buffer:
             log_file.write(entry + '\n')
